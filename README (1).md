@@ -1,0 +1,102 @@
+# NetSage AI
+
+**An AI-assisted troubleshooter for Packet Tracer lab problems, with a human in the loop.**
+
+NetSage AI reads a symptom plus show-command output, suggests the likely root cause and next steps, and **always requires a human to review the result before any fix is accepted.**
+
+![Domain](https://img.shields.io/badge/domain-networking%20labs-blue)
+![Course](https://img.shields.io/badge/course-Modern%20AI-purple)
+![Safety](https://img.shields.io/badge/safety-human%20review%20required-red)
+![Python](https://img.shields.io/badge/python-3-green)
+
+## Table of Contents
+
+- [Why this exists](#why-this-exists)
+- [How it works](#how-it-works)
+- [What's included](#whats-included)
+- [Getting started](#getting-started)
+- [Results](#results)
+- [Simulated vs. real](#simulated-vs-real)
+
+## Why this exists
+
+Junior network engineers often know individual commands but struggle to connect a symptom to its real root cause. If a PC gets an IP address but can't reach the server, is the problem VLAN, routing, DHCP, DNS, ACL, or NAT?
+
+NetSage AI takes a symptom and its evidence (show-command output, `ipconfig`, logs) and proposes:
+
+- a likely **root cause**
+- the affected **OSI layer**
+- the **next command** to run
+- a suggested **fix**
+
+Every suggestion is subject to human sign-off before anything touches a real device.
+
+## How it works
+
+```
+data/cases.csv               <- 30 troubleshooting cases (the dataset)
+        |
+        v
+prompts/diagnose_prompt.md   <- structured prompt, forces JSON output
+        |
+        v
+data/ai_diagnoses.csv        <- AI's diagnosis for every case, logged
+        |
+        v
+review/human_review.csv      <- human verdict: Accepted / Edited / Rejected
+        |
+        v
+docs/responsible_ai_log.md   <- write-up of every AI mistake and why
+
+scripts/rule_checker.py      <- runs independently on data/cases.csv,
+                                before or after the AI step, catching
+                                config mistakes deterministically
+        |
+        v
+data/rule_checker_results.csv
+
+dashboard/NetSage_AI_Dashboard.xlsx  <- pulls from all of the above
+```
+
+## What's included
+
+| Component | File(s) | Status |
+|---|---|---|
+| **Case dataset**: 30 cases with symptom, show output, expected fault, OSI layer, concept, and severity | `data/cases.csv` | ✅ Covers VLAN, gateway, DHCP, DNS, routing, ACL, NAT, wireless |
+| **Prompt files**: structured JSON prompt with worked examples | `prompts/diagnose_prompt.md` | ✅ System prompt, JSON schema, 3 worked examples (including one low-confidence case) |
+| **Python rule checker**: deterministic config-mistake checks | `scripts/rule_checker.py`, `data/rule_checker_results.csv` | ✅ Duplicate IP, wrong mask, gateway mismatch, interface down, missing VLAN, missing route |
+| **AI diagnosis log**: one response saved per case | `data/ai_diagnoses.csv` | ✅ 30 JSON-schema responses |
+| **Human review**: Accepted / Edited / Rejected verdicts plus a why-wrong log | `review/human_review.csv`, `docs/responsible_ai_log.md` | ✅ 18 Accepted / 6 Edited / 6 Rejected, with 6 documented AI mistakes |
+| **Dashboard**: counts by issue type, AI vs. human agreement | `dashboard/NetSage_AI_Dashboard.xlsx` | ✅ Live-formula KPI row with bar and pie charts |
+| **Demo**: one broken lab, diagnosed, reviewed, fixed, and verified | `docs/demo_script.md` | ✅ Script and outline ready to record in Packet Tracer |
+
+## Getting started
+
+Clone the repository and run any of the scripts from the project root:
+
+```bash
+git clone <your-repo-url>
+cd netsage_ai
+
+python3 scripts/generate_cases.py          # rebuilds data/cases.csv
+python3 scripts/generate_ai_diagnoses.py   # rebuilds data/ai_diagnoses.csv
+python3 scripts/generate_human_review.py   # rebuilds review/human_review.csv
+python3 scripts/rule_checker.py            # rebuilds data/rule_checker_results.csv
+python3 scripts/build_dashboard.py         # rebuilds the dashboard workbook
+```
+
+Each script is independent and idempotent. To extend the dataset, add a new case (for example `C031`) to `generate_cases.py` and re-run the whole chain to regenerate everything downstream.
+
+## Results
+
+Current run:
+
+- **30 cases**: VLAN (5), Gateway (4), DHCP (4), DNS (4), Routing (4), ACL (4), NAT (3), Wireless (2).
+- **AI agreement rate: 60%**. 18 of 30 diagnoses were Accepted outright, 20% were Edited, and 20% were Rejected. See [`docs/responsible_ai_log.md`](docs/responsible_ai_log.md) for the 6 rejected cases and what they reveal about the prompt's blind spots.
+- **The rule checker independently flags 13 of 30 cases (43%)** with a deterministic config issue. This includes the C009 mask mismatch that the AI diagnosis got wrong, which is the kind of belt-and-suspenders check this project is meant to demonstrate.
+
+## Simulated vs. real
+
+- The **cases, prompt design, rule-checker logic, human-review verdicts, and Responsible AI log** are real, working artifacts you can inspect, edit, and extend.
+- `data/ai_diagnoses.csv` was generated by working through the `diagnose_prompt.md` template as an AI assistant would, deliberately preserving 6 realistic wrong answers so the human-review and Responsible AI log have genuine material to work with. If you have LLM API access configured, you can regenerate this file by calling a model with the prompt template against each row of `cases.csv`. The schema and downstream scripts don't change.
+- The **demo video is not included**. `docs/demo_script.md` provides an outline to follow when recording it in Packet Tracer.
